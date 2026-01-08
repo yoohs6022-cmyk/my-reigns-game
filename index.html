@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>마스케라 (Maschera)</title>
+    <style>
+        :root {
+            --gold: #d4af37;
+            --dark-red: #4a0404;
+            --white: #ffffff;
+            --bg-overlay: rgba(0, 0, 0, 0.75);
+            --card-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #1a1a1a; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+            color: #fff; overflow: hidden;
+        }
+
+        /* 배경 디자인 */
+        .main-container {
+            width: 100%; height: 100%;
+            background: linear-gradient(var(--bg-overlay), var(--bg-overlay)), 
+                        url('https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover; background-position: center;
+            display: flex; flex-direction: column; align-items: center;
+            position: relative;
+        }
+
+        /* 상단 자원바 */
+        .status-header {
+            width: 100%; max-width: 500px;
+            display: flex; justify-content: space-around;
+            padding: 30px 10px; z-index: 10;
+        }
+
+        .stat-box { display: flex; flex-direction: column; align-items: center; position: relative; width: 22%; }
+        .stat-icon { font-size: 24px; margin-bottom: 8px; filter: drop-shadow(0 0 5px var(--gold)); cursor: help; }
+
+        .stat-bar-bg {
+            width: 100%; height: 8px; background: rgba(255,255,255,0.2);
+            border-radius: 4px; overflow: hidden; border: 1px solid rgba(212,175,55,0.3);
+        }
+
+        .stat-bar-fill {
+            height: 100%; width: 50%; background: var(--gold);
+            transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .hint-dot {
+            position: absolute; bottom: -15px; color: var(--gold);
+            font-size: 14px; opacity: 0; transition: opacity 0.2s;
+        }
+
+        /* 카드 영역 */
+        .card-zone {
+            flex: 1; display: flex; flex-direction: column; justify-content: center;
+            align-items: center; width: 100%; perspective: 1000px;
+        }
+
+        .turn-display { margin-bottom: 15px; font-weight: bold; color: var(--gold); letter-spacing: 2px; text-shadow: 2px 2px 4px #000; }
+
+        .card {
+            width: 320px; height: 460px; background: var(--white);
+            border-radius: 15px; box-shadow: var(--card-shadow);
+            color: #333; display: flex; flex-direction: column;
+            overflow: hidden; position: relative;
+            animation: cardFadeIn 0.5s ease-out;
+            transition: transform 0.2s;
+        }
+
+        @keyframes cardFadeIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card-img { width: 100%; height: 60%; object-fit: cover; background: #eee; border-bottom: 1px solid #ddd; }
+        .card-desc { padding: 20px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .char-name { font-weight: 800; color: var(--dark-red); margin-bottom: 5px; font-size: 1.1rem; }
+        .char-msg { font-size: 0.95rem; line-height: 1.4; color: #444; word-break: keep-all; }
+
+        /* 컨트롤 버튼 */
+        .controls {
+            width: 100%; max-width: 500px; padding: 40px 20px 60px;
+            display: flex; justify-content: center; gap: 15px;
+        }
+
+        .choice-btn {
+            flex: 1; padding: 20px; border-radius: 12px;
+            border: 2px solid var(--gold); background: rgba(0,0,0,0.6);
+            color: var(--gold); font-weight: bold; cursor: pointer;
+            transition: 0.3s; font-size: 0.95rem;
+        }
+
+        .choice-btn:hover { background: var(--gold); color: #000; }
+
+        /* 특수 알림 */
+        #alert-badge {
+            position: absolute; top: 120px; background: var(--dark-red);
+            padding: 5px 15px; border-radius: 20px; font-size: 0.8rem;
+            color: white; border: 1px solid var(--gold); display: none; z-index: 5;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+
+        /* 엔딩 모달 */
+        #modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; text-align: center; padding: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <div class="status-header">
+        <div class="stat-box" title="기품">
+            <span class="stat-icon">🍷</span>
+            <div class="stat-bar-bg"><div id="bar-grace" class="stat-bar-fill"></div></div>
+            <span id="hint-grace" class="hint-dot">●</span>
+        </div>
+        <div class="stat-box" title="의심">
+            <span class="stat-icon">👁️</span>
+            <div class="stat-bar-bg"><div id="bar-suspicion" class="stat-bar-fill"></div></div>
+            <span id="hint-suspicion" class="hint-dot">●</span>
+        </div>
+        <div class="stat-box" title="체력(보안)">
+            <span class="stat-icon">💎</span>
+            <div class="stat-bar-bg"><div id="bar-health" class="stat-bar-fill"></div></div>
+            <span id="hint-health" class="hint-dot">●</span>
+        </div>
+        <div class="stat-box" title="권위">
+            <span class="stat-icon">👑</span>
+            <div class="stat-bar-bg"><div id="bar-authority" class="stat-bar-fill"></div></div>
+            <span id="hint-authority" class="hint-dot">●</span>
+        </div>
+    </div>
+
+    <div id="alert-badge">🎭 괴도의 환각: 수치 변화 반전 중</div>
+
+    <div class="card-zone">
+        <div class="turn-display">무도회 경과: <span id="turn-txt">1</span> / 100시간</div>
+        <div class="card" id="card">
+            <img id="card-img" src="" alt="캐릭터" class="card-img">
+            <div class="card-desc">
+                <div id="char-name" class="char-name"></div>
+                <div id="char-msg" class="char-msg"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="choice-btn" id="btn-left" onmouseover="showHint('left')" onmouseout="hideHint()">왼쪽</button>
+        <button class="choice-btn" id="btn-right" onmouseover="showHint('right')" onmouseout="hideHint()">오른쪽</button>
+    </div>
+</div>
+
+<div id="modal">
+    <h1 id="modal-title" style="color:var(--gold); font-size: 2.5rem;"></h1>
+    <p id="modal-msg" style="margin: 20px 0; line-height: 1.6; color: #ccc; font-size: 1.1rem;"></p>
+    <a href="javascript:location.reload();" 
+   style="display: inline-block; width: 150px; line-height: 40px; text-align: center; background: #eee; text-decoration: none; color: #000; border: 1px solid #ccc;">
+   새로운 무도회
+</a>
+</div>
+
+<script>
+    // --- 게임 데이터 ---
+    const cardData = {
+        common: [
+            {
+                name: "백작", msg: "어머, 당신만 알고 계세요. 저기 대장님이 어젯밤에 누구를 만났는지 아시나요?", image: "images/백작.jpg",
+                left: { label: "말해 보시오", effect: { grace: 0, suspicion: 15, health: 0, authority: 5 } },
+                right: { label: "관심 없소", effect: { grace: 5, suspicion: -5, health: 0, authority: -5 } }
+            },
+            {
+                name: "대장", msg: "무도회를 중단해야 합니다! 지금 당장 전원 검문을 실시하지 않으면 보석을 지킬 수 없습니다!", image: "images/대장.jpg",
+                left: { label: "실시하라", effect: { grace: -15, suspicion: 10, health: 25, authority: 0 } },
+                right: { label: "품위를 유지하라", effect: { grace: 15, suspicion: -5, health: -20, authority: 0 } }
+            },
+            {
+                name: "황녀", msg: "오늘 밤은 보석보다 당신이 더 흥미롭군요. 내 명령을 어길 배짱이 있나요?", image: "images/황녀.jpg",
+                left: { label: "따르겠습니다", effect: { grace: 0, suspicion: 10, health: -15, authority: 20 } },
+                right: { label: "불가능합니다", effect: { grace: 10, suspicion: 0, health: 5, authority: -15 } }
+            }
+        ],
+        rare: [
+            // 광대 (4개)
+            {
+                name: "광대", msg: "[이벤트: 운명의 동전 던지기]\n내기 하나 할까요? 앞면이면 행운을, 뒷면이면... 히히, 상상에 맡길게요!", image: "images/광대.jpg",
+                left: { label: "내기에 응한다", effect: "gamble" },
+                right: { label: "무시한다", effect: { grace: -10, suspicion: -5, health: 0, authority: 0 } }
+            },
+            {
+                name: "광대", msg: "히히히! 이 보석이 진짜라고 믿으세요? 제가 먹어봤는데 설탕 맛이 나던걸요?", image: "images/광대.jpg",
+                left: { label: "가짜라니?!", effect: { grace: -20, suspicion: 30, health: 0, authority: -10 } },
+                right: { label: "입을 닥쳐라", effect: { grace: 5, suspicion: -10, health: 0, authority: 10 } }
+            },
+            {
+                name: "광대", msg: "무도회장에 쥐들을 풀어놓았어요! 귀부인들의 비명소리가 무도곡보다 듣기 좋죠?", image: "images/광대.jpg",
+                left: { label: "깔깔 웃는다", effect: { grace: -30, suspicion: 15, health: -10, authority: 10 } },
+                right: { label: "당장 치워라", effect: { grace: 10, suspicion: -5, health: 5, authority: -15 } }
+            },
+            {
+                name: "광대", msg: "당신의 가면이 참 탐나네요. 잠시만 저랑 바꿔 써보실래요? 아무도 모를 거예요!", image: "images/광대.jpg",
+                left: { label: "빌려준다", effect: { grace: -25, suspicion: 40, health: 0, authority: -20 } },
+                right: { label: "거절한다", effect: { grace: 5, suspicion: -5, health: 0, authority: 5 } }
+            },
+            // 괴도 (3개)
+            {
+                name: "괴도", msg: "[이벤트: 가면의 속삭임]\n지금 당신 옆에 있는 집사가 진짜라고 믿나요? 나와 자리를 바꾸면 이 지루함을 끝내줄 텐데.", image: "images/괴도.jpg",
+                left: { label: "제안 수락", effect: { health: -40, suspicion: -30, grace: 0, authority: 0 }, special: "reverse" },
+                right: { label: "가면을 벗긴다", effect: { health: 20, authority: 10, grace: 0, suspicion: 5 } }
+            },
+            {
+                name: "괴도", msg: "이 보석함 열쇠가 제 손에 있네요? 돌려받고 싶으면 춤을 춰보시겠어요? 아주 우아하게요.", image: "images/괴도.jpg",
+                left: { label: "춤을 춘다", effect: { grace: 20, suspicion: 15, health: -20, authority: 0 } },
+                right: { label: "경비를 부른다", effect: { grace: -10, suspicion: 10, health: 20, authority: 5 } }
+            },
+            {
+                name: "괴도", msg: "오늘 밤 당신은 저의 공범이 되어야겠어요. 저기 황녀의 보석을 함께 훔칠까요?", image: "images/괴도.jpg",
+                left: { label: "협력한다", effect: { grace: -20, suspicion: 40, health: -30, authority: -10 } },
+                right: { label: "밀고한다", effect: { grace: 10, suspicion: -10, health: 20, authority: 10 } }
+            },
+            // 집사 (3개)
+            {
+                name: "집사", msg: "[이벤트: 피 묻은 손수건]\n지하 보석 창고에 침입한 '벌레'를 청소했습니다. 어떻게 처리할까요?", image: "images/집사.jpg",
+                left: { label: "비밀 매장", effect: { suspicion: -20, grace: -10, health: 10, authority: 0 } },
+                right: { label: "본보기 전시", effect: { health: 30, suspicion: 20, authority: 15, grace: -20 } }
+            },
+            {
+                name: "집사", msg: "주인님, 누군가 당신의 술잔에 독을 탔습니다. 제가 미리 바꿔치기해 두었습니다.", image: "images/집사.jpg",
+                left: { label: "수고했다", effect: { grace: 0, suspicion: -15, health: 20, authority: 5 } },
+                right: { label: "조사하라", effect: { grace: 0, suspicion: 20, health: 5, authority: 0 } }
+            },
+            {
+                name: "집사", msg: "무도회 예산이 바닥났습니다. 선조의 유산을 처분하여 충당할까요?", image: "images/집사.jpg",
+                left: { label: "처분하라", effect: { grace: -25, suspicion: 0, health: 10, authority: 15 } },
+                right: { label: "안 된다", effect: { grace: 10, suspicion: 5, health: -20, authority: -15 } }
+            }
+        ]
+    };
+
+    // --- 게임 상태 ---
+    let stats = { grace: 50, suspicion: 20, health: 50, authority: 50 };
+    let turn = 1;
+    let currentCard = null;
+    let reverseTimer = 0;
+
+    const bars = {
+        grace: document.getElementById('bar-grace'),
+        suspicion: document.getElementById('bar-suspicion'),
+        health: document.getElementById('bar-health'),
+        authority: document.getElementById('bar-authority')
+    };
+
+    function updateUI() {
+        for (let s in stats) {
+            bars[s].style.width = stats[s] + "%";
+        }
+        document.getElementById('turn-txt').innerText = turn;
+        document.getElementById('alert-badge').style.display = reverseTimer > 0 ? 'block' : 'none';
+        checkGameOver();
+    }
+
+    function checkGameOver() {
+        let dead = false;
+        let title = "💀 무도회 종료 💀";
+        let msg = "";
+
+        for (let s in stats) {
+            if (stats[s] <= 0 || stats[s] >= 100) {
+                dead = true;
+                if (s === 'grace') msg = stats[s] >= 100 ? "당신의 고결함이 너무 눈부셔 정적들에게 독살당했습니다." : "천박한 행동으로 인해 사교계에서 영원히 추방되었습니다.";
+                if (s === 'suspicion') msg = stats[s] >= 100 ? "당신을 괴도로 확신한 군중들이 당신을 단두대로 보냈습니다." : "너무나 존재감 없는 당신은 정적들의 손에 조용히 사라졌습니다.";
+                if (s === 'health') msg = stats[s] >= 100 ? "철통 보안 속에 갇힌 당신은 스스로 미쳐버렸습니다." : "보안의 구멍으로 침입한 괴도가 당신의 목숨을 앗아갔습니다.";
+                if (s === 'authority') msg = stats[s] >= 100 ? "황제에 도전한다는 누명을 쓰고 반역자로 숙청당했습니다." : "권력을 잃은 당신은 부랑자들에게 비참하게 짓밟혔습니다.";
+                break;
+            }
+        }
+
+        if (turn >= 100 && !dead) {
+            dead = true;
+            title = "✨ 무도회의 승리자 ✨";
+            msg = "당신은 100시간의 광기 어린 무도회에서 살아남아 제국의 보석을 지켜냈습니다!";
+        }
+
+        if (dead) {
+            const modal = document.getElementById('modal');
+            modal.style.display = 'flex';
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-msg').innerText = msg;
+        }
+    }
+
+    function getNextCard() {
+        // 15~20턴마다 Rare 카드 등장 로직
+        const isRare = (turn % 15 === 0 || turn % 17 === 0 || turn % 20 === 0);
+        const pool = isRare ? cardData.rare : cardData.common;
+        currentCard = pool[Math.floor(Math.random() * pool.length)];
+
+        document.getElementById('char-name').innerText = currentCard.name;
+        document.getElementById('char-msg').innerText = currentCard.msg;
+        document.getElementById('card-img').src = currentCard.image;
+        document.getElementById('btn-left').innerText = currentCard.left.label;
+        document.getElementById('btn-right').innerText = currentCard.right.label;
+
+        // 카드 입작 효과
+        const card = document.getElementById('card');
+        card.style.animation = 'none';
+        card.offsetHeight; 
+        card.style.animation = null;
+    }
+
+    function makeChoice(side) {
+        const choice = currentCard[side];
+        let effect = choice.effect;
+
+        // 광대 도박 로직
+        if (effect === "gamble") {
+            const win = Math.random() > 0.5;
+            effect = win ? { grace: 20, suspicion: 20, health: 20, authority: 20 } : { grace: -25, suspicion: -25, health: -25, authority: -25 };
+        }
+
+        // 수치 적용
+        for (let s in effect) {
+            let change = effect[s];
+            if (reverseTimer > 0) change *= -1; // 괴도 반전 효과
+            stats[s] = Math.max(0, Math.min(100, stats[s] + change));
+        }
+
+        // 특수 효과 체크
+        if (choice.special === "reverse") reverseTimer = 6;
+        if (reverseTimer > 0) reverseTimer--;
+
+        turn++;
+        updateUI();
+        if (turn <= 100) getNextCard();
+    }
+
+    function showHint(side) {
+        const effect = currentEventEffect(side);
+        for (let s in effect) {
+            if (effect[s] !== 0) document.getElementById(`hint-${s}`).style.opacity = 1;
+        }
+    }
+
+    function currentEventEffect(side) {
+        const eff = currentCard[side].effect;
+        return eff === "gamble" ? { grace: 1, suspicion: 1, health: 1, authority: 1 } : eff;
+    }
+
+    function hideHint() {
+        document.querySelectorAll('.hint-dot').forEach(dot => dot.style.opacity = 0);
+    }
+
+    document.getElementById('btn-left').onclick = () => makeChoice('left');
+    document.getElementById('btn-right').onclick = () => makeChoice('right');
+
+    // 게임 시작
+    getNextCard();
+    updateUI();
+</script>
+
+</body>
+</html>
